@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireLeadership } from '@/lib/middleware'
 import { notifyAll } from '@/lib/notifications'
+import { SITE_OWNER_DISCORD_ID } from '@/lib/discord'
 
 const ALL_ROLE_IDS     = ['1107100643291828224','1107099637644529684','1107098741510520852','1107095888045801532','1518710460717731840','1107093171026010203']
 const MUNCITOR_ROLE_ID = '1107093171026010203'
@@ -34,7 +35,7 @@ export async function GET() {
     create: { id: 'main' },
   })
   const roleIds = (session!.user.roleIds || []) as string[]
-  const canToggleTax = roleIds.some(id => TAX_PAUSE_ROLE_IDS.includes(id))
+  const canToggleTax = session!.user.discordId === SITE_OWNER_DISCORD_ID || roleIds.some(id => TAX_PAUSE_ROLE_IDS.includes(id))
 
   // Copiaza automat taxa permanenta pentru Muncitori din saptamana trecuta
   const prevWeekStart  = getPrevWeekStart()
@@ -130,7 +131,7 @@ export async function PATCH(req: NextRequest) {
   // Pauza globala poate fi controlata strict de Lider si Lider Secundar.
   if (body.action === 'setTaxPaused') {
     const roleIds = (session!.user.roleIds || []) as string[]
-    const allowed = roleIds.some(id => TAX_PAUSE_ROLE_IDS.includes(id))
+    const allowed = session!.user.discordId === SITE_OWNER_DISCORD_ID || roleIds.some(id => TAX_PAUSE_ROLE_IDS.includes(id))
 
     if (!allowed) {
       return NextResponse.json(
