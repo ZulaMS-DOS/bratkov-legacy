@@ -104,11 +104,19 @@ export async function POST(req: NextRequest) {
       )
   )
 
-  await notifyAll({
-    type:    'tax',
-    title:   '💰 Taxă Sindicat Nouă',
-    message: 'Taxa pentru săptămâna aceasta a fost setată. Verifică materialele de predat!',
+  const siteConfig = await (prisma as any).siteConfig.upsert({
+    where: { id: 'main' },
+    update: {},
+    create: { id: 'main' },
   })
+
+  if (!siteConfig.taxPaused) {
+    await notifyAll({
+      type:    'tax',
+      title:   '💰 Taxă Sindicat Nouă',
+      message: 'Taxa pentru săptămâna aceasta a fost setată. Verifică materialele de predat!',
+    })
+  }
 
   return NextResponse.json({ items: created })
 }
