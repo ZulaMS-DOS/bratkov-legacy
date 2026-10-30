@@ -1,11 +1,16 @@
+
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/middleware'
 import { notify } from '@/lib/notifications'
+import {
+  SITE_OWNER_DISCORD_ID,
+  isFullLeadership,
+} from '@/lib/discord'
 
 const LEADERSHIP_ROLES = [
-  '1107100643291828224', // Lider Bratkov
-  '1515017621127299303', // Lider Secundar
+  '1107100643291828224', // Lider
+  '1515017621127299303', // Lider secundar
   '1107099637644529684', // Co-Lider
 ]
 
@@ -14,11 +19,14 @@ export async function GET() {
   if (error) return error
 
   const userId = session!.user.id
+  const discordId = (session!.user as any).discordId
   const roleIds = session!.user.roleIds || []
 
-  const isLeader = roleIds.some((r: string) =>
-    LEADERSHIP_ROLES.includes(r)
-  )
+  // Owner-ul are acces permanent, indiferent de rolurile Discord.
+  const isLeader =
+    discordId === SITE_OWNER_DISCORD_ID ||
+    isFullLeadership(roleIds) ||
+    roleIds.some((role: string) => LEADERSHIP_ROLES.includes(role))
 
   const demisii = await prisma.resignation.findMany({
     where: isLeader ? {} : { userId },
@@ -41,6 +49,7 @@ export async function GET() {
 
   return NextResponse.json({ demisii })
 }
+
 
 export async function POST(req: NextRequest) {
   const { session, error } = await requireAuth()
