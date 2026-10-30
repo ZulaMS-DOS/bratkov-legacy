@@ -229,7 +229,7 @@ export default function LiderTaxaPage() {
     const gradeMembers = members.filter(m => m.roleIds.includes(grade.id))
     const paidCount    = gradeMembers.filter(m => paidMap.get(`${m.id}_${grade.id}`)?.paid).length
     return { ...grade, members: gradeMembers, paidCount, total: gradeMembers.length }
-  }).filter(g => g.total > 0)
+  })
 
   const totalPaid  = payments.filter(p => p.paid).length
   const totalCount = members.length
