@@ -5,6 +5,7 @@ import { RefreshCw } from 'lucide-react'
 
 const GRADE_CONFIG = [
   { id: '1107100643291828224', label: 'Lider',            color: 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10' },
+  { id: '1515017621127299303', label: 'Lider Secundar',   color: 'text-amber-400 border-amber-500/30 bg-amber-500/10' },
   { id: '1107099637644529684', label: 'Co-Lider',         color: 'text-orange-400 border-orange-500/30 bg-orange-500/10' },
   { id: '1107098741510520852', label: 'Tester',           color: 'text-purple-400 border-purple-500/30 bg-purple-500/10' },
   { id: '1107095888045801532', label: 'Membru',           color: 'text-grove-green border-grove-border bg-grove-dim' },
@@ -12,7 +13,7 @@ const GRADE_CONFIG = [
   { id: '1107093171026010203', label: 'Muncitor',         color: 'text-zinc-400 border-zinc-600/30 bg-zinc-600/10' },
 ]
 
-const GRADE_ORDER = ['Lider', 'Co-Lider', 'Tester', 'Membru', 'Bratkov Enforcer', 'Muncitor', 'Fără Grad']
+const GRADE_ORDER = ['Lider', 'Lider Secundar', 'Co-Lider', 'Tester', 'Membru', 'Bratkov Enforcer', 'Muncitor', 'Fără Grad']
 
 interface Member {
   id: string; discordId: string; username: string
