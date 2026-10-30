@@ -238,7 +238,10 @@ export async function syncDiscordMembers() {
   const expiringMuncitori = await prisma.user.findMany({
     where: {
       roleIds:  { has: MUNCITOR_ROLE_ID },
-      joinedAt: { gte: sevenDaysAgo, lt: sevenDaysAgoEnd },
+      // În pauza taxei promovăm și muncitorii a căror perioadă de probă a expirat deja.
+      joinedAt: taxPaused
+        ? { lt: sevenDaysAgoEnd }
+        : { gte: sevenDaysAgo, lt: sevenDaysAgoEnd },
     },
     select: { id: true, username: true, discordId: true, joinedAt: true, roleIds: true },
   })
@@ -252,7 +255,7 @@ export async function syncDiscordMembers() {
       },
     })
 
-    if (!alreadyNotified) {
+    if (!alreadyNotified || taxPaused) {
       const promotati:   string[] = []
       const nepromotati: string[] = []
 
