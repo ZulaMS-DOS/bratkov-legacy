@@ -274,7 +274,7 @@ export async function syncDiscordMembers() {
             `${DIVIDER}\n` +
             `> 👤 <@${u.discordId}> **(${u.username})**\n` +
             `> 📅 Intrat pe: ${joinedStr}\n` +
-            `> 💰 Taxă: ✅ Achitată\n` +
+            `> 💰 Taxă: ${taxPaused ? '⏸️ Suspendată' : '✅ Achitată'}\n` +
             `> 🎉 **Promovat automat la Membru!**`
           )
         } else {
