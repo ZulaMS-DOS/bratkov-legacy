@@ -143,7 +143,15 @@ export async function syncDiscordMembers() {
     if (existing) {
       await prisma.user.update({
         where: { discordId },
-        data:  { username, roleIds, avatar },
+        data: {
+          username,
+          roleIds,
+          avatar,
+          // Completează data intrării pentru Muncitorii existenți care nu aveau joinedAt salvat.
+          ...(isMuncitor && !existing.joinedAt && m.joined_at
+            ? { joinedAt: new Date(m.joined_at) }
+            : {}),
+        },
       })
     } else {
       await prisma.user.create({
