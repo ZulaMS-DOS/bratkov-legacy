@@ -116,6 +116,8 @@ export async function GET(req: NextRequest) {
   if (error) return error
 
   const weekStart    = getWeekStart()
+  const siteConfig = await (prisma as any).siteConfig.upsert({ where: { id: 'main' }, update: {}, create: { id: 'main' } })
+  const taxPaused = siteConfig.taxPaused
   const userId       = session!.user.id
   const myRoleIds    = session!.user.roleIds || []
   const now          = new Date()
@@ -181,57 +183,61 @@ export async function GET(req: NextRequest) {
     return t >= today && t < todayEnd
   })
 
-  for (const item of expiringTomorrow) {
-    const alreadyNotified = await (prisma as any).notification.findFirst({
-      where: { type: 'tax', title: '⏰ Taxă Expiră Mâine', message: { contains: item.name }, createdAt: { gte: todayStart } },
-    })
-    if (!alreadyNotified) {
-      const leaders = await prisma.user.findMany({ where: { roleIds: { hasSome: LEADERSHIP_ROLES } }, select: { id: true } })
-      await Promise.all(leaders.map(l => notify({ userId: l.id, type: 'tax', title: '⏰ Taxă Expiră Mâine', message: `Taxa "${item.name}" expiră mâine!` })))
-      const targetRoles: string[] = item.targetRoles || []
-      const gradeText = targetRoles.length > 0 ? targetRoles.map((r: string) => GRADE_LABELS[r] || r).join(', ') : 'Toți membrii'
-      const unpaidLines = await buildUnpaidList(item, weekStart)
-      const unpaidText  = unpaidLines.length > 0 ? unpaidLines.join('\n') : '> ✅ Toți au achitat!'
-      await sendDiscordMessage(
-  `## ⏰ Taxă Expiră Mâine
-━━━━━━━━━━━━━━━━━━━━
-> 📋 **${item.name}**
-> 👥 **Grade vizate:** ${gradeText}
-━━━━━━━━━━━━━━━━━━━━
-**Membri care NU au achitat (${unpaidLines.length}):**
-${unpaidText}
-━━━━━━━━━━━━━━━━━━━━
-<@&1107100643291828224> <@&1107099637644529684>`,
-  '⏰ Taxă Expiră Mâine'
-)
+  // Suspendă toate notificările de expirare cât timp taxa este oprită.
+  if (!taxPaused) {
+    for (const item of expiringTomorrow) {
+      const alreadyNotified = await (prisma as any).notification.findFirst({
+        where: { type: 'tax', title: '⏰ Taxă Expiră Mâine', message: { contains: item.name }, createdAt: { gte: todayStart } },
+      })
+      if (!alreadyNotified) {
+        const leaders = await prisma.user.findMany({ where: { roleIds: { hasSome: LEADERSHIP_ROLES } }, select: { id: true } })
+        await Promise.all(leaders.map(l => notify({ userId: l.id, type: 'tax', title: '⏰ Taxă Expiră Mâine', message: `Taxa "${item.name}" expiră mâine!` })))
+        const targetRoles: string[] = item.targetRoles || []
+        const gradeText = targetRoles.length > 0 ? targetRoles.map((r: string) => GRADE_LABELS[r] || r).join(', ') : 'Toți membrii'
+        const unpaidLines = await buildUnpaidList(item, weekStart)
+        const unpaidText  = unpaidLines.length > 0 ? unpaidLines.join('\n') : '> ✅ Toți au achitat!'
+        await sendDiscordMessage(
+    `## ⏰ Taxă Expiră Mâine
+  ━━━━━━━━━━━━━━━━━━━━
+  > 📋 **${item.name}**
+  > 👥 **Grade vizate:** ${gradeText}
+  ━━━━━━━━━━━━━━━━━━━━
+  **Membri care NU au achitat (${unpaidLines.length}):**
+  ${unpaidText}
+  ━━━━━━━━━━━━━━━━━━━━
+  <@&1107100643291828224> <@&1107099637644529684>`,
+    '⏰ Taxă Expiră Mâine'
+  )
+      }
     }
-  }
-
-  for (const item of expiringToday) {
-    const alreadyNotified = await (prisma as any).notification.findFirst({
-      where: { type: 'tax', title: '🚨 Taxă Expiră Azi', message: { contains: item.name }, createdAt: { gte: todayStart } },
-    })
-    if (!alreadyNotified) {
-      const leaders = await prisma.user.findMany({ where: { roleIds: { hasSome: LEADERSHIP_ROLES } }, select: { id: true } })
-      await Promise.all(leaders.map(l => notify({ userId: l.id, type: 'tax', title: '🚨 Taxă Expiră Azi', message: `Taxa "${item.name}" expiră AZI!` })))
-      const targetRoles: string[] = item.targetRoles || []
-      const gradeText = targetRoles.length > 0 ? targetRoles.map((r: string) => GRADE_LABELS[r] || r).join(', ') : 'Toți membrii'
-      const unpaidLines = await buildUnpaidList(item, weekStart)
-      const unpaidText  = unpaidLines.length > 0 ? unpaidLines.join('\n') : '> ✅ Toți au achitat!'
-      await sendDiscordMessage(
-        
-  `## 🚨 Taxă Expiră Azi
-━━━━━━━━━━━━━━━━━━━━
-> 📋 **${item.name}**
-> 👥 **Grade vizate:** ${gradeText}
-━━━━━━━━━━━━━━━━━━━━
-**Membri care NU au achitat (${unpaidLines.length}):**
-${unpaidText}
-━━━━━━━━━━━━━━━━━━━━
-<@&1107100643291828224> <@&1107099637644529684>`,
-  '🚨 Taxă Expiră Azi'
-)
+  
+    for (const item of expiringToday) {
+      const alreadyNotified = await (prisma as any).notification.findFirst({
+        where: { type: 'tax', title: '🚨 Taxă Expiră Azi', message: { contains: item.name }, createdAt: { gte: todayStart } },
+      })
+      if (!alreadyNotified) {
+        const leaders = await prisma.user.findMany({ where: { roleIds: { hasSome: LEADERSHIP_ROLES } }, select: { id: true } })
+        await Promise.all(leaders.map(l => notify({ userId: l.id, type: 'tax', title: '🚨 Taxă Expiră Azi', message: `Taxa "${item.name}" expiră AZI!` })))
+        const targetRoles: string[] = item.targetRoles || []
+        const gradeText = targetRoles.length > 0 ? targetRoles.map((r: string) => GRADE_LABELS[r] || r).join(', ') : 'Toți membrii'
+        const unpaidLines = await buildUnpaidList(item, weekStart)
+        const unpaidText  = unpaidLines.length > 0 ? unpaidLines.join('\n') : '> ✅ Toți au achitat!'
+        await sendDiscordMessage(
+          
+    `## 🚨 Taxă Expiră Azi
+  ━━━━━━━━━━━━━━━━━━━━
+  > 📋 **${item.name}**
+  > 👥 **Grade vizate:** ${gradeText}
+  ━━━━━━━━━━━━━━━━━━━━
+  **Membri care NU au achitat (${unpaidLines.length}):**
+  ${unpaidText}
+  ━━━━━━━━━━━━━━━━━━━━
+  <@&1107100643291828224> <@&1107099637644529684>`,
+    '🚨 Taxă Expiră Azi'
+  )
+      }
     }
+  
   }
 
   return NextResponse.json({
@@ -240,5 +246,6 @@ ${unpaidText}
     paidAt:    rolePayment.paidAt,
     paidByRole,
     weekStart: weekStart.toISOString(),
+    taxPaused,
   })
 }

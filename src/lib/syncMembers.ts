@@ -123,6 +123,8 @@ export async function syncDiscordMembers() {
   const discordMembers = await fetchAllDiscordMembers()
   const discordIds     = new Set(discordMembers.map((m: any) => m.user.id))
   const now            = new Date()
+  const siteConfig = await (prisma as any).siteConfig.upsert({ where: { id: 'main' }, update: {}, create: { id: 'main' } })
+  const taxPaused = siteConfig.taxPaused
 
   for (const m of discordMembers) {
     const discordId  = m.user.id
@@ -141,7 +143,15 @@ export async function syncDiscordMembers() {
     if (existing) {
       await prisma.user.update({
         where: { discordId },
-        data:  { username, roleIds, avatar },
+        data: {
+          username,
+          roleIds,
+          avatar,
+          // Completează data intrării pentru Muncitorii existenți care nu aveau joinedAt salvat.
+          ...(isMuncitor && !existing.joinedAt && m.joined_at
+            ? { joinedAt: new Date(m.joined_at) }
+            : {}),
+        },
       })
     } else {
       await prisma.user.create({
@@ -236,7 +246,10 @@ export async function syncDiscordMembers() {
   const expiringMuncitori = await prisma.user.findMany({
     where: {
       roleIds:  { has: MUNCITOR_ROLE_ID },
-      joinedAt: { gte: sevenDaysAgo, lt: sevenDaysAgoEnd },
+      // În pauza taxei promovăm și muncitorii a căror perioadă de probă a expirat deja.
+      joinedAt: taxPaused
+        ? { lt: sevenDaysAgoEnd }
+        : { gte: sevenDaysAgo, lt: sevenDaysAgoEnd },
     },
     select: { id: true, username: true, discordId: true, joinedAt: true, roleIds: true },
   })
@@ -250,12 +263,12 @@ export async function syncDiscordMembers() {
       },
     })
 
-    if (!alreadyNotified) {
+    if (!alreadyNotified || taxPaused) {
       const promotati:   string[] = []
       const nepromotati: string[] = []
 
       for (const u of expiringMuncitori) {
-        const paid      = await hasPaidTaxa(u.id)
+        const paid      = taxPaused || await hasPaidTaxa(u.id)
         const joinedStr = u.joinedAt ? new Date(u.joinedAt).toLocaleDateString('ro-RO') : '?'
 
         if (paid) {
@@ -272,7 +285,7 @@ export async function syncDiscordMembers() {
             `${DIVIDER}\n` +
             `> 👤 <@${u.discordId}> **(${u.username})**\n` +
             `> 📅 Intrat pe: ${joinedStr}\n` +
-            `> 💰 Taxă: ✅ Achitată\n` +
+            `> 💰 Taxă: ${taxPaused ? '⏸️ Suspendată' : '✅ Achitată'}\n` +
             `> 🎉 **Promovat automat la Membru!**`
           )
         } else {

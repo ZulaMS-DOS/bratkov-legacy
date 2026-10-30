@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, Trash2, Save, Users, RefreshCw, X, RotateCcw } from 'lucide-react'
+import { Plus, Trash2, Save, Users, RefreshCw, X, RotateCcw, Pause, Play } from 'lucide-react'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
 import Image from 'next/image'
@@ -54,6 +54,9 @@ export default function LiderTaxaPage() {
   const [toggling, setToggling]   = useState<string | null>(null)
   const [msg, setMsg]             = useState('')
   const [resetting, setResetting] = useState(false)
+  const [taxPaused, setTaxPaused] = useState(false)
+  const [canToggleTax, setCanToggleTax] = useState(false)
+  const [taxPauseBusy, setTaxPauseBusy] = useState(false)
   const [tab, setTab]             = useState<'seteaza' | 'status'>('seteaza')
   const [activeGrade, setActiveGrade] = useState<string>(GRADE_OPTIONS[0].id)
 
@@ -77,6 +80,8 @@ export default function LiderTaxaPage() {
     }
     setPayments(d.payments || [])
     setMembers(d.members   || [])
+    setTaxPaused(Boolean(d.taxPaused))
+    setCanToggleTax(Boolean(d.canToggleTax))
     setLoading(false)
   }, [])
 
@@ -164,6 +169,37 @@ export default function LiderTaxaPage() {
     await load()
     setToggling(null)
   }
+  const toggleTaxPause = async () => {
+    const nextPaused = !taxPaused
+    const confirmed = confirm(
+      nextPaused
+        ? 'Suspendă taxa pentru toți membrii? Nu se vor trimite notificări pentru neachitare, iar Muncitorii vor fi promovați după 7 zile.'
+        : 'Reactivează taxa? Verificările și notificările normale vor fi reluate.'
+    )
+    if (!confirmed) return
+
+    setTaxPauseBusy(true)
+    try {
+      const r = await fetch('/api/taxa/admin', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'setTaxPaused', paused: nextPaused }),
+      })
+      const d = await r.json()
+      if (!r.ok) {
+        setMsg(d.error || '❌ Nu s-a putut modifica starea taxei.')
+      } else {
+        setTaxPaused(Boolean(d.taxPaused))
+        setMsg(d.taxPaused ? '⏸️ Taxa a fost suspendată pentru toți.' : '▶️ Taxa a fost reactivată.')
+      }
+    } catch {
+      setMsg('❌ Eroare de conexiune la modificarea taxei.')
+    } finally {
+      setTaxPauseBusy(false)
+      setTimeout(() => setMsg(''), 4000)
+    }
+  }
+
   const resetAll = async () => {
   if (!confirm('Ești sigur? Toți membrii (exceptând Muncitorii) vor fi trecuți pe neachitat!')) return
 
@@ -218,6 +254,20 @@ export default function LiderTaxaPage() {
           <p className="text-zinc-500 text-sm mt-1">Setează materialele și marchează plățile</p>
         </div>
         <div className="flex gap-2">
+  {canToggleTax && (
+    <button
+      onClick={toggleTaxPause}
+      disabled={taxPauseBusy}
+      className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-colors disabled:opacity-50 ${
+        taxPaused
+          ? 'text-green-400 border-green-500/30 bg-green-500/10 hover:bg-green-500/20'
+          : 'text-amber-400 border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20'
+      }`}
+    >
+      {taxPauseBusy ? <RefreshCw size={14} className="animate-spin" /> : taxPaused ? <Play size={14} /> : <Pause size={14} />}
+      {taxPauseBusy ? 'Se actualizează...' : taxPaused ? 'Reactivează taxa' : 'Suspendă taxa'}
+    </button>
+  )}
   <button
     onClick={resetAll}
     disabled={resetting}
@@ -254,6 +304,11 @@ export default function LiderTaxaPage() {
         </button>
       </div>
 
+      {taxPaused && (
+        <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 text-sm">
+          ⏸️ Taxa Sindicat este suspendată pentru toți membrii. Plățile și istoricul sunt păstrate.
+        </div>
+      )}
       {msg && <div className="p-3 bg-dark-hover rounded-xl text-sm text-grove-green border border-grove-border">{msg}</div>}
 
       {tab === 'seteaza' && (

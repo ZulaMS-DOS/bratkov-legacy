@@ -296,5 +296,6 @@ model BotLog {
 model SiteConfig {
   id          String  @id @default("main")
   maintenance Boolean @default(false)
+  taxPaused   Boolean @default(false)
   message     String  @default("Site-ul este în mentenanță. Revenim în curând!")
 }
