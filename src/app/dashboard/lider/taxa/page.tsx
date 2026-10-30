@@ -146,7 +146,12 @@ export default function LiderTaxaPage() {
   }
 
   const save = async () => {
-    const valid = itemsRef.current.filter(i => i.name.trim() !== '')
+    const valid = itemsRef.current
+      .filter(i => i.name.trim() !== '' || (i.targetRoles.includes(GROVE_KILLER_ID) && (i.jafuri?.length || 0) > 0))
+      .map(i => ({
+        ...i,
+        name: i.name.trim() || 'Jafuri Bratkov Enforcer',
+      }))
     setSaving(true)
     const r = await fetch('/api/taxa/admin', {
       method:  'POST',
