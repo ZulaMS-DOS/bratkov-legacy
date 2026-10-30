@@ -89,11 +89,11 @@ export async function POST(req: NextRequest) {
 
   const created = await Promise.all(
     items
-      .filter((item: any) => item.name && item.name.trim() !== '')
+      .filter((item: any) => (item.name && item.name.trim() !== '') || (Array.isArray(item.targetRoles) && item.targetRoles.includes('1518710460717731840') && Array.isArray(item.jafuri) && item.jafuri.length > 0))
       .map((item: any) =>
         (prisma as any).taxItem.create({
           data: {
-            name:        item.name.trim(),
+            name:        item.name?.trim() || 'Jafuri Bratkov Enforcer',
             bucati:      parseInt(item.bucati) || 0,
             termen:      item.termen && item.termen.trim() !== '' ? new Date(item.termen) : null,
             targetRoles: Array.isArray(item.targetRoles) ? item.targetRoles : [],
