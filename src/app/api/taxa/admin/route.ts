@@ -5,6 +5,7 @@ import { notifyAll } from '@/lib/notifications'
 
 const ALL_ROLE_IDS     = ['1107100643291828224','1107099637644529684','1107098741510520852','1107095888045801532','1518710460717731840','1107093171026010203']
 const MUNCITOR_ROLE_ID = '1107093171026010203'
+const TAX_PAUSE_ROLE_IDS = ['1107100643291828224', '1515017621127299303']
 
 function getWeekStart() {
   const now  = new Date()
@@ -23,10 +24,17 @@ function getPrevWeekStart() {
 }
 
 export async function GET() {
-  const { error } = await requireLeadership()
+  const { session, error } = await requireLeadership()
   if (error) return error
 
   const weekStart = getWeekStart()
+  const config = await (prisma as any).siteConfig.upsert({
+    where: { id: 'main' },
+    update: {},
+    create: { id: 'main' },
+  })
+  const roleIds = (session!.user.roleIds || []) as string[]
+  const canToggleTax = roleIds.some(id => TAX_PAUSE_ROLE_IDS.includes(id))
 
   // Copiaza automat taxa permanenta pentru Muncitori din saptamana trecuta
   const prevWeekStart  = getPrevWeekStart()
@@ -64,7 +72,7 @@ export async function GET() {
     })
   ])
 
-  return NextResponse.json({ items, payments, members, weekStart: weekStart.toISOString() })
+  return NextResponse.json({ items, payments, members, weekStart: weekStart.toISOString(), taxPaused: config.taxPaused, canToggleTax })
 }
 
 export async function POST(req: NextRequest) {
@@ -106,11 +114,37 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const { error } = await requireLeadership()
+  const { session, error } = await requireLeadership()
   if (error) return error
 
-  const { userId, roleId, paid, action } = await req.json()
+  const body = await req.json()
 
+  // Pauza globala poate fi controlata strict de Lider si Lider Secundar.
+  if (body.action === 'setTaxPaused') {
+    const roleIds = (session!.user.roleIds || []) as string[]
+    const allowed = roleIds.some(id => TAX_PAUSE_ROLE_IDS.includes(id))
+
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Doar Liderul și Liderul Secundar pot modifica pauza taxei.' },
+        { status: 403 }
+      )
+    }
+
+    if (typeof body.paused !== 'boolean') {
+      return NextResponse.json({ error: 'Valoare paused invalidă' }, { status: 400 })
+    }
+
+    const config = await (prisma as any).siteConfig.upsert({
+      where: { id: 'main' },
+      update: { taxPaused: body.paused },
+      create: { id: 'main', taxPaused: body.paused },
+    })
+
+    return NextResponse.json({ success: true, taxPaused: config.taxPaused })
+  }
+
+  const { userId, roleId, paid, action } = body
   const weekStart = getWeekStart()
 
   // Reset toate platile (inafara de Muncitori)
