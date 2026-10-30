@@ -12,6 +12,7 @@ export default function TaxaPage() {
   const [items, setItems]     = useState<TaxItem[]>([])
   const [paid, setPaid]       = useState(false)
   const [paidAt, setPaidAt]   = useState<string | null>(null)
+  const [taxPaused, setTaxPaused] = useState(false)
   const [weekStart, setWeek]  = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdate, setLast] = useState(new Date())
@@ -22,6 +23,7 @@ export default function TaxaPage() {
     setItems(d.items || [])
     setPaid(d.paid)
     setPaidAt(d.paidAt)
+    setTaxPaused(Boolean(d.taxPaused))
     setWeek(d.weekStart)
     setLast(new Date())
     setLoading(false)
@@ -48,21 +50,28 @@ export default function TaxaPage() {
         </button>
       </div>
 
-      <div className={`grove-card flex items-center gap-4 ${paid ? 'border-green-500/40 bg-green-500/5' : 'border-red-500/40 bg-red-500/5'}`}>
-        {paid
-          ? <CheckCircle size={32} className="text-green-400 shrink-0" />
-          : <XCircle size={32} className="text-red-400 shrink-0" />
-        }
-        <div>
-          <div className={`text-xl font-black ${paid ? 'text-green-400' : 'text-red-400'}`}>
-            {paid ? 'TAXA ACHITATĂ ✓' : 'TAXA NEACHITATĂ'}
-          </div>
-          {paid && paidAt
-            ? <div className="text-xs text-zinc-500 mt-0.5">Confirmat la {format(new Date(paidAt), 'dd MMM yyyy HH:mm', { locale: ro })}</div>
-            : <div className="text-xs text-zinc-500 mt-0.5">Contactează un Lider după ce ai plătit taxa</div>
-          }
+      {taxPaused ? (
+        <div className="grove-card border-amber-500/40 bg-amber-500/5">
+          <div className="text-xl font-black text-amber-400">⏸️ TAXA SUSPENDATĂ</div>
+          <div className="text-xs text-zinc-500 mt-1">Nu trebuie să achiți taxa cât timp suspendarea este activă. Istoricul plăților rămâne păstrat.</div>
         </div>
-      </div>
+      ) : (
+        <div className={`grove-card flex items-center gap-4 ${paid ? 'border-green-500/40 bg-green-500/5' : 'border-red-500/40 bg-red-500/5'}`}>
+          {paid
+            ? <CheckCircle size={32} className="text-green-400 shrink-0" />
+            : <XCircle size={32} className="text-red-400 shrink-0" />
+          }
+          <div>
+            <div className={`text-xl font-black ${paid ? 'text-green-400' : 'text-red-400'}`}>
+              {paid ? 'TAXA ACHITATĂ ✓' : 'TAXA NEACHITATĂ'}
+            </div>
+            {paid && paidAt
+              ? <div className="text-xs text-zinc-500 mt-0.5">Confirmat la {format(new Date(paidAt), 'dd MMM yyyy HH:mm', { locale: ro })}</div>
+              : <div className="text-xs text-zinc-500 mt-0.5">Contactează un Lider după ce ai plătit taxa</div>
+            }
+          </div>
+        </div>
+      )}
 
       <div className="grove-card p-0 overflow-hidden">
         <div className="px-5 py-3 border-b border-dark-border">
