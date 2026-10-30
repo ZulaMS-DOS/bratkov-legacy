@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/middleware'
 import { notify } from '@/lib/notifications'
+import { SITE_OWNER_DISCORD_ID } from '@/lib/discord'
 
 const LEADERSHIP_ROLES = [
   '1107100643291828224', // Lider
@@ -16,11 +17,18 @@ export async function PATCH(
   const { session, error } = await requireAuth()
   if (error) return error
 
-  const roleIds = session!.user.roleIds || []
+  const user = session!.user as any
+  const roleIds = user.roleIds || []
 
-  const canManage = roleIds.some((r: string) =>
+  // Owner-ul site-ului are acces permanent
+  const isOwner = user.discordId === SITE_OWNER_DISCORD_ID
+
+  // Verificăm rolurile de leadership
+  const hasLeadershipRole = roleIds.some((r: string) =>
     LEADERSHIP_ROLES.includes(r)
   )
+
+  const canManage = isOwner || hasLeadershipRole
 
   if (!canManage) {
     return NextResponse.json(
