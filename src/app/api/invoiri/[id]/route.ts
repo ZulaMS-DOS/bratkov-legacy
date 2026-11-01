@@ -2,13 +2,37 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/middleware'
 import { notify } from '@/lib/notifications'
-import { SITE_OWNER_DISCORD_ID } from '@/lib/discord'
+import { DISCORD_BOT_TOKEN, SITE_OWNER_DISCORD_ID } from '@/lib/discord'
 
 const LEADERSHIP_ROLES = [
   '1107100643291828224', // Lider
   '1515017621127299303', // Lider Secundar
   '1107099637644529684', // Co-Lider
 ]
+
+async function addAcceptedReaction(messageId: string) {
+  if (!DISCORD_BOT_TOKEN) {
+    console.error('DISCORD_BOT_TOKEN lipsește; reacția pentru învoire nu a fost adăugată.')
+    return
+  }
+
+  try {
+    const emoji = encodeURIComponent('✅')
+    const response = await fetch(
+      `https://discord.com/api/v10/channels/1155954199247454248/messages/${messageId}/reactions/${emoji}/@me`,
+      {
+        method: 'PUT',
+        headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
+      }
+    )
+
+    if (!response.ok) {
+      console.error('Nu s-a putut adăuga bifa la învoire:', await response.text())
+    }
+  } catch (error) {
+    console.error('Eroare la adăugarea bifei pentru învoire:', error)
+  }
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -19,11 +43,7 @@ export async function PATCH(
 
   const user = session!.user as any
   const roleIds = user.roleIds || []
-
-  // Owner-ul are acces permanent
   const isOwner = user.discordId === SITE_OWNER_DISCORD_ID
-
-  // Lider, Lider Secundar și Co-Lider
   const hasLeadershipRole = roleIds.some((r: string) =>
     LEADERSHIP_ROLES.includes(r)
   )
@@ -45,7 +65,6 @@ export async function PATCH(
   }
 
   const { id } = await context.params
-
   const invoire = await prisma.leaveRequest.update({
     where: { id },
     data: {
@@ -68,18 +87,18 @@ export async function PATCH(
     },
   })
 
+  if (status === 'ACCEPTED' && invoire.discordMessageId) {
+    await addAcceptedReaction(invoire.discordMessageId)
+  }
+
   if (invoire.user?.id) {
     await notify({
       userId: invoire.user.id,
       type: 'leave',
-      title:
-        status === 'ACCEPTED'
-          ? '✅ Învoire Aprobată'
-          : '❌ Învoire Respinsă',
-      message:
-        status === 'ACCEPTED'
-          ? `Învoirea ta a fost aprobată de ${invoire.approver?.username}.`
-          : `Învoirea ta a fost respinsă de ${invoire.approver?.username}.`,
+      title: status === 'ACCEPTED' ? '✅ Învoire Aprobată' : '❌ Învoire Respinsă',
+      message: status === 'ACCEPTED'
+        ? `Învoirea ta a fost aprobată de ${invoire.approver?.username}.`
+        : `Învoirea ta a fost respinsă de ${invoire.approver?.username}.`,
     })
   }
 
