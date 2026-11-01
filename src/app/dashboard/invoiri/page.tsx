@@ -5,8 +5,9 @@ import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
 import { Plus, Check, X } from 'lucide-react'
 
-const LEADERSHIP_ROLES = ['1107100643291828224', '1107099637644529684']
+const LEADERSHIP_ROLES = ['1107100643291828224', '1515017621127299303', '1107099637644529684']
 const TESTER_ROLE = '1107098741510520852'
+const SITE_OWNER_DISCORD_ID = '949760812518617138'
 
 interface Invoire {
   id: string
@@ -43,7 +44,7 @@ export default function InvoiriPage() {
   const [form, setForm] = useState({ reason: '', startDate: '', endDate: '' })
   const [tab, setTab] = useState<StatusTab>('PENDING')
 
-  const canManage = session?.user.roleIds?.some((r: string) =>
+  const canManage = session?.user.discordId === SITE_OWNER_DISCORD_ID || session?.user.roleIds?.some((r: string) =>
     [...LEADERSHIP_ROLES, TESTER_ROLE].includes(r)
   )
 
