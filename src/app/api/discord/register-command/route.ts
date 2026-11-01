@@ -30,6 +30,7 @@ export async function GET() {
             { name: 'ATM (1.5 pts)',       value: 'atm'         },
             { name: 'Magazin (1 pt)',      value: 'magazin'     },
             { name: 'Digital Den (2 pts)', value: 'digital_den' },
+            { name: 'Farmacie (2 pts)',     value: 'farmacie'    },
           ],
         },
         {
