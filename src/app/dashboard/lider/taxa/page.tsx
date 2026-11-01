@@ -27,6 +27,7 @@ const JAF_TYPES = [
   { value: 'magazin',     label: '🏪 Magazin'     },
   { value: 'digital_den', label: '💻 Digital Den' },
   { value: 'atm',         label: '💳 ATM'         },
+  { value: 'farmacie',    label: '💊 Farmacie'    },
 
 ]
 
