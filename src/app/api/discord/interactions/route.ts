@@ -22,6 +22,7 @@ const JAF_CONFIG: Record<string, { label: string; points: number }> = {
   atm:         { label: '💳 ATM Run',            points: 1.5 },
   magazin:     { label: '🏪 Magazin',            points: 1   },
   digital_den: { label: '💻 Digital Den',        points: 2   },
+  farmacie:    { label: '💊 Farmacie',            points: 2   },
 }
 
 function getWeekStart() {
