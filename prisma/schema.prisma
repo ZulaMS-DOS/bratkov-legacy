@@ -60,8 +60,9 @@ model LeaveRequest {
   endDate    DateTime
   status     LeaveStatus @default(PENDING)
   approvedBy String?
-  approvedAt DateTime?
-  createdAt  DateTime    @default(now())
+  approvedAt       DateTime?
+  discordMessageId String?
+  createdAt        DateTime    @default(now())
 
   user     User? @relation(fields: [userId], references: [id], onDelete: SetNull)
   approver User? @relation("ApprovedLeaves", fields: [approvedBy], references: [id])
