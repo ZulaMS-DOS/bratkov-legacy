@@ -6,74 +6,110 @@ import { ro } from 'date-fns/locale'
 import { Plus, Check, X } from 'lucide-react'
 
 const LEADERSHIP_ROLES = ['1107100643291828224', '1107099637644529684']
-const TESTER_ROLE      = '1107098741510520852'
+const TESTER_ROLE = '1107098741510520852'
 
 interface Invoire {
-  id: string; reason: string; startDate: string; endDate: string; status: string;
-  createdAt: string; approvedAt: string | null;
-  user: { username: string; avatar: string | null }
-  approver: { username: string } | null
+  id: string
+  reason: string
+  startDate: string
+  endDate: string
+  status: string
+  createdAt: string
+  approvedAt: string | null
+  user: { username: string | null; avatar: string | null } | null
+  approver: { username: string | null } | null
 }
 
 type StatusTab = 'PENDING' | 'ACCEPTED' | 'REJECTED'
 
 const TAB_LABELS: Record<StatusTab, string> = {
-  PENDING:  'Pending',
+  PENDING: 'Pending',
   ACCEPTED: 'Acceptate',
   REJECTED: 'Respinse',
 }
 
 const EMPTY_LABELS: Record<StatusTab, string> = {
-  PENDING:  'Nicio cerere în așteptare',
+  PENDING: 'Nicio cerere în așteptare',
   ACCEPTED: 'Nicio cerere acceptată',
   REJECTED: 'Nicio cerere respinsă',
 }
 
 export default function InvoiriPage() {
   const { data: session } = useSession()
-  const [invoiri, setInvoiri]   = useState<Invoire[]>([])
-  const [loading, setLoading]   = useState(true)
+  const [invoiri, setInvoiri] = useState<Invoire[]>([])
+  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [submitting, setSub]    = useState(false)
-  const [form, setForm]         = useState({ reason: '', startDate: '', endDate: '' })
-  const [tab, setTab]           = useState<StatusTab>('PENDING')
+  const [submitting, setSub] = useState(false)
+  const [form, setForm] = useState({ reason: '', startDate: '', endDate: '' })
+  const [tab, setTab] = useState<StatusTab>('PENDING')
 
   const canManage = session?.user.roleIds?.some((r: string) =>
     [...LEADERSHIP_ROLES, TESTER_ROLE].includes(r)
   )
 
   const load = useCallback(async () => {
-    const r = await fetch('/api/invoiri')
-    const d = await r.json()
-    setInvoiri(d.invoiri || [])
-    setLoading(false)
+    try {
+      const r = await fetch('/api/invoiri')
+      if (!r.ok) throw new Error('Nu s-au putut încărca învoirile.')
+      const d = await r.json()
+      setInvoiri(Array.isArray(d.invoiri) ? d.invoiri : [])
+    } catch (error) {
+      console.error('Eroare la încărcarea învoirilor:', error)
+      setInvoiri([])
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { load() }, [load])
 
   const submit = async () => {
-    if (!form.reason || !form.startDate || !form.endDate) return
+    if (!form.reason.trim() || !form.startDate || !form.endDate) return
     setSub(true)
-    await fetch('/api/invoiri', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
-    setForm({ reason: '', startDate: '', endDate: '' })
-    setShowForm(false)
-    await load()
-    setSub(false)
+    try {
+      const response = await fetch('/api/invoiri', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      if (!response.ok) throw new Error('Cererea nu a putut fi trimisă.')
+      setForm({ reason: '', startDate: '', endDate: '' })
+      setShowForm(false)
+      await load()
+    } catch (error) {
+      console.error('Eroare la trimiterea învoirii:', error)
+      alert(error instanceof Error ? error.message : 'A apărut o eroare.')
+    } finally {
+      setSub(false)
+    }
   }
 
   const review = async (id: string, status: 'ACCEPTED' | 'REJECTED') => {
-    await fetch(`/api/invoiri/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
-    await load()
+    try {
+      const response = await fetch(`/api/invoiri/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'Cererea nu a putut fi actualizată.')
+      }
+      await load()
+    } catch (error) {
+      console.error('Eroare la procesarea învoirii:', error)
+      alert(error instanceof Error ? error.message : 'A apărut o eroare.')
+    }
   }
 
   const statusBadge = (s: string) => ({
-    PENDING:  <span className="badge-pending">Pending</span>,
+    PENDING: <span className="badge-pending">Pending</span>,
     ACCEPTED: <span className="badge-accepted">Acceptat</span>,
     REJECTED: <span className="badge-rejected">Respins</span>,
   }[s] ?? null)
 
   const counts = useMemo(() => ({
-    PENDING:  invoiri.filter(i => i.status === 'PENDING').length,
+    PENDING: invoiri.filter(i => i.status === 'PENDING').length,
     ACCEPTED: invoiri.filter(i => i.status === 'ACCEPTED').length,
     REJECTED: invoiri.filter(i => i.status === 'REJECTED').length,
   }), [invoiri])
@@ -84,9 +120,9 @@ export default function InvoiriPage() {
     <div className="space-y-6 animate-slide-up">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black text-white">Invoiri</h1>
+          <h1 className="text-3xl font-black text-white">Învoiri</h1>
           <p className="text-zinc-500 text-sm mt-1">
-            {canManage ? 'Toate cererile de invoire ale membrilor' : 'Cererile tale de invoire'}
+            {canManage ? 'Toate cererile de învoire ale membrilor' : 'Cererile tale de învoire'}
           </p>
         </div>
         <button onClick={() => setShowForm(!showForm)} className="grove-btn flex items-center gap-2">
@@ -96,11 +132,11 @@ export default function InvoiriPage() {
 
       {showForm && (
         <div className="grove-card border-grove-border animate-slide-up">
-          <h2 className="text-sm font-semibold text-grove-green uppercase tracking-widest mb-4">📝 Cerere Invoire</h2>
+          <h2 className="text-sm font-semibold text-grove-green uppercase tracking-widest mb-4">📝 Cerere Învoire</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <label className="grove-label">Motiv</label>
-              <textarea className="grove-input resize-none" rows={3} placeholder="Descrie motivul invoirii..."
+              <textarea className="grove-input resize-none" rows={3} placeholder="Descrie motivul învoirii..."
                 value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} />
             </div>
             <div>
@@ -140,17 +176,17 @@ export default function InvoiriPage() {
         {filtered.map(inv => (
           <div key={inv.id} className="grove-card">
             <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="font-semibold text-white">{inv.user.username}</span>
+                  <span className="font-semibold text-white">{inv.user?.username || 'Membru necunoscut'}</span>
                   {statusBadge(inv.status)}
                 </div>
                 <p className="text-zinc-400 text-sm mb-2">{inv.reason}</p>
-                <div className="flex gap-4 text-xs text-zinc-600">
+                <div className="flex flex-wrap gap-4 text-xs text-zinc-600">
                   <span>📅 {format(new Date(inv.startDate), 'dd MMM yyyy', { locale: ro })} → {format(new Date(inv.endDate), 'dd MMM yyyy', { locale: ro })}</span>
                   <span>🕐 {format(new Date(inv.createdAt), 'dd MMM HH:mm', { locale: ro })}</span>
                 </div>
-                {inv.approver && (
+                {inv.approver?.username && (
                   <div className="mt-2 text-xs text-zinc-600">
                     {inv.status === 'ACCEPTED' ? '✅' : '❌'} {inv.approver.username} — {inv.approvedAt ? format(new Date(inv.approvedAt), 'dd MMM HH:mm', { locale: ro }) : ''}
                   </div>
@@ -158,8 +194,8 @@ export default function InvoiriPage() {
               </div>
               {canManage && inv.status === 'PENDING' && (
                 <div className="flex gap-2 shrink-0">
-                  <button onClick={() => review(inv.id, 'ACCEPTED')} className="p-2 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors border border-green-500/20"><Check size={14} /></button>
-                  <button onClick={() => review(inv.id, 'REJECTED')} className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors border border-red-500/20"><X size={14} /></button>
+                  <button onClick={() => review(inv.id, 'ACCEPTED')} aria-label="Acceptă învoirea" className="p-2 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors border border-green-500/20"><Check size={14} /></button>
+                  <button onClick={() => review(inv.id, 'REJECTED')} aria-label="Respinge învoirea" className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors border border-red-500/20"><X size={14} /></button>
                 </div>
               )}
             </div>
