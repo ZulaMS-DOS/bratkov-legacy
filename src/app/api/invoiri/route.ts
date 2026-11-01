@@ -2,13 +2,74 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/middleware'
 import { notify } from '@/lib/notifications'
-import { SITE_OWNER_DISCORD_ID } from '@/lib/discord'
+import { DISCORD_BOT_TOKEN, SITE_OWNER_DISCORD_ID } from '@/lib/discord'
+
+const LEAVE_CHANNEL_ID = '1155954199247454248'
 
 const LEADERSHIP_ROLES = [
   '1107100643291828224', // Lider
   '1515017621127299303', // Lider Secundar
   '1107099637644529684', // Co-Lider
 ]
+
+function formatDate(value: string | Date) {
+  return new Date(value).toLocaleDateString('ro-RO', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'Europe/Bucharest',
+  })
+}
+
+async function publishLeaveRequest(invoire: {
+  id: string
+  reason: string
+  startDate: Date
+  endDate: Date
+  user: { username: string | null; discordId: string } | null
+}) {
+  if (!DISCORD_BOT_TOKEN) {
+    console.error('DISCORD_BOT_TOKEN lipsește; învoirea nu a fost publicată pe Discord.')
+    return
+  }
+
+  const content = [
+    '## 🏖️ Cerere Nouă de Învoire',
+    '━━━━━━━━━━━━━━━━━━━━━━━━',
+    `**Membru:** ${invoire.user?.username || 'Membru necunoscut'}`,
+    `**Discord:** ${invoire.user?.discordId ? `<@${invoire.user.discordId}>` : 'Nedisponibil'}`,
+    `**Perioadă:** ${formatDate(invoire.startDate)} – ${formatDate(invoire.endDate)}`,
+    `**Motiv:** ${invoire.reason.slice(0, 1200)}`,
+    '━━━━━━━━━━━━━━━━━━━━━━━━',
+    '⏳ **Status:** În așteptare',
+  ].join('\n')
+
+  try {
+    const response = await fetch(`https://discord.com/api/v10/channels/${LEAVE_CHANNEL_ID}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ content }),
+    })
+
+    if (!response.ok) {
+      console.error('Nu s-a putut publica învoirea pe Discord:', await response.text())
+      return
+    }
+
+    const message = await response.json()
+    if (message.id) {
+      await prisma.leaveRequest.update({
+        where: { id: invoire.id },
+        data: { discordMessageId: message.id },
+      })
+    }
+  } catch (error) {
+    console.error('Eroare la publicarea învoirii pe Discord:', error)
+  }
+}
 
 export async function GET() {
   const { session, error } = await requireAuth()
@@ -23,7 +84,6 @@ export async function GET() {
     LEADERSHIP_ROLES.includes(r)
   )
 
-  // Owner și Leadership văd toate învoirile
   const invoiri = await prisma.leaveRequest.findMany({
     where: isOwner || isLeader ? {} : { userId },
     orderBy: { createdAt: 'desc' },
@@ -62,7 +122,7 @@ export async function POST(req: NextRequest) {
   const invoire = await prisma.leaveRequest.create({
     data: {
       userId: session!.user.id,
-      reason,
+      reason: String(reason).trim(),
       startDate: new Date(startDate),
       endDate: new Date(endDate),
     },
@@ -71,12 +131,14 @@ export async function POST(req: NextRequest) {
         select: {
           username: true,
           avatar: true,
+          discordId: true,
         },
       },
     },
   })
 
-  // Notificăm liderii și Owner-ul
+  await publishLeaveRequest(invoire)
+
   const lideri = await prisma.user.findMany({
     where: {
       OR: [
