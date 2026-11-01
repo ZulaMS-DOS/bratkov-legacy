@@ -10,14 +10,14 @@ const LEADERSHIP_ROLES = [
   '1107099637644529684', // Co-Lider
 ]
 
-async function addAcceptedReaction(messageId: string) {
+async function addDecisionReaction(messageId: string, status: 'ACCEPTED' | 'REJECTED') {
   if (!DISCORD_BOT_TOKEN) {
     console.error('DISCORD_BOT_TOKEN lipsește; reacția pentru învoire nu a fost adăugată.')
     return
   }
 
   try {
-    const emoji = encodeURIComponent('✅')
+    const emoji = encodeURIComponent(status === 'ACCEPTED' ? '✅' : '❌')
     const response = await fetch(
       `https://discord.com/api/v10/channels/1155954199247454248/messages/${messageId}/reactions/${emoji}/@me`,
       {
@@ -27,10 +27,10 @@ async function addAcceptedReaction(messageId: string) {
     )
 
     if (!response.ok) {
-      console.error('Nu s-a putut adăuga bifa la învoire:', await response.text())
+      console.error('Nu s-a putut adăuga reacția la învoire:', await response.text())
     }
   } catch (error) {
-    console.error('Eroare la adăugarea bifei pentru învoire:', error)
+    console.error('Eroare la adăugarea reacției pentru învoire:', error)
   }
 }
 
@@ -87,8 +87,8 @@ export async function PATCH(
     },
   })
 
-  if (status === 'ACCEPTED' && invoire.discordMessageId) {
-    await addAcceptedReaction(invoire.discordMessageId)
+  if (invoire.discordMessageId) {
+    await addDecisionReaction(invoire.discordMessageId, status)
   }
 
   if (invoire.user?.id) {
