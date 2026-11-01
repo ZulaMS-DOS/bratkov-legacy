@@ -15,6 +15,7 @@ const JAF_LABELS: Record<string, string> = {
   '💳 ATM Run':            'atm',
   '🏪 Magazin':            'magazin',
   '💻 Digital Den':        'digital_den',
+  '💊 Farmacie':            'farmacie',
 }
 
 function getWeekStart() {
