@@ -87,7 +87,7 @@ async function publishLeaveRequest(invoire: {
     `**Motiv:** ${invoire.reason.slice(0, 1200)}`,
     '━━━━━━━━━━━━━━━━━━━━━━━━',
     '⏳ **Status:** În așteptare',
-  ].join('\\n')
+  ].join('\n')
 
   try {
     const response = await fetch(`https://discord.com/api/v10/channels/${LEAVE_CHANNEL_ID}/messages`, {
@@ -221,7 +221,7 @@ export async function POST(req: NextRequest) {
     `> **Motiv:** ${String(reason).trim().slice(0, 1200)}`,
     divider,
     'Verifică cererea în panoul **Învoiri** de pe site-ul Bratkov Legacy.',
-  ].join('\\n')
+  ].join('\n')
 
   const uniqueDiscordIds = Array.from(
     new Set(lideri.map(lider => lider.discordId).filter((id): id is string => Boolean(id)))
