@@ -21,6 +21,51 @@ function formatDate(value: string | Date) {
   })
 }
 
+async function sendDiscordDM(discordId: string, content: string) {
+  if (!DISCORD_BOT_TOKEN) {
+    console.error('DISCORD_BOT_TOKEN lipsește; DM-ul pentru învoire nu a fost trimis.')
+    return false
+  }
+
+  try {
+    const dmResponse = await fetch('https://discord.com/api/v10/users/@me/channels', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ recipient_id: discordId }),
+    })
+
+    if (!dmResponse.ok) {
+      console.error('Nu s-a putut deschide DM-ul Discord pentru învoire:', discordId, await dmResponse.text())
+      return false
+    }
+
+    const dm = await dmResponse.json()
+    if (!dm.id) return false
+
+    const messageResponse = await fetch(`https://discord.com/api/v10/channels/${dm.id}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ content }),
+    })
+
+    if (!messageResponse.ok) {
+      console.error('Nu s-a putut trimite DM-ul Discord pentru învoire:', discordId, await messageResponse.text())
+      return false
+    }
+
+    return true
+  } catch (error) {
+    console.error('Eroare trimitere DM învoire:', discordId, error)
+    return false
+  }
+}
+
 async function publishLeaveRequest(invoire: {
   id: string
   reason: string
@@ -42,7 +87,7 @@ async function publishLeaveRequest(invoire: {
     `**Motiv:** ${invoire.reason.slice(0, 1200)}`,
     '━━━━━━━━━━━━━━━━━━━━━━━━',
     '⏳ **Status:** În așteptare',
-  ].join('\n')
+  ].join('\\n')
 
   try {
     const response = await fetch(`https://discord.com/api/v10/channels/${LEAVE_CHANNEL_ID}/messages`, {
@@ -148,6 +193,7 @@ export async function POST(req: NextRequest) {
     },
     select: {
       id: true,
+      discordId: true,
     },
   })
 
@@ -157,9 +203,32 @@ export async function POST(req: NextRequest) {
         userId: l.id,
         type: 'leave',
         title: '🏖️ Cerere Învoire Nouă',
-        message: `${session!.user.name} a depus o cerere de învoire. Verifică și aprobă!`,
+        message: `${session!.user.name || 'Un membru'} a depus o cerere de învoire. Verifică și aprobă!`,
       })
     )
+  )
+
+  // DM Discord către Lider, Lider Secundar, Co-Lider și proprietarul site-ului.
+  const applicantName =
+    invoire.user?.username || session!.user.name || 'Membru necunoscut'
+  const divider = '━━━━━━━━━━━━━━━━━━━━'
+  const dmContent = [
+    '## 🏖️ Cerere Nouă de Învoire',
+    divider,
+    `> **Membru:** ${applicantName}`,
+    `> **Discord:** ${invoire.user?.discordId ? `<@${invoire.user.discordId}>` : 'Nedisponibil'}`,
+    `> **Perioadă:** ${formatDate(invoire.startDate)} – ${formatDate(invoire.endDate)}`,
+    `> **Motiv:** ${String(reason).trim().slice(0, 1200)}`,
+    divider,
+    'Verifică cererea în panoul **Învoiri** de pe site-ul Bratkov Legacy.',
+  ].join('\\n')
+
+  const uniqueDiscordIds = Array.from(
+    new Set(lideri.map(lider => lider.discordId).filter((id): id is string => Boolean(id)))
+  )
+
+  await Promise.all(
+    uniqueDiscordIds.map(discordId => sendDiscordDM(discordId, dmContent))
   )
 
   return NextResponse.json({ invoire })
