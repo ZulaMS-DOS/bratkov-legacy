@@ -91,12 +91,19 @@ export default function LiderAmenziPage() {
   }
 
   const remove = async (id: string) => {
-    await fetch('/api/amenzi/admin', {
+    const response = await fetch('/api/amenzi/admin', {
       method:  'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ id }),
     })
-    showMsg('🗑️ Șters!')
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      showMsg(data.error || '❌ Nu am putut șterge sancțiunea complet')
+      return
+    }
+
+    showMsg('🗑️ Sancțiunea și mesajul Discord au fost șterse!')
     await load()
   }
 
