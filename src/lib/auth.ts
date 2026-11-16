@@ -1,4 +1,3 @@
-
 import { AuthOptions } from 'next-auth'
 import DiscordProvider from 'next-auth/providers/discord'
 import { prisma } from '@/lib/prisma'
@@ -40,21 +39,24 @@ export const authOptions: AuthOptions = {
 
       let member = null
 
-      if (!isSiteOwner) {
-        try {
-          member = await getGuildMember(discordId)
-        } catch (e) {
+      // Owner-ul rămâne permanent autorizat, dar îi sincronizăm și rolurile
+      // reale din Discord pentru permisiuni precum Amenzi / Faction Warn.
+      try {
+        member = await getGuildMember(discordId)
+      } catch (e) {
+        if (!isSiteOwner) {
           return '/auth/error?error=bot_error'
-        }
-
-        if (!member) {
-          return '/auth/error?error=not_in_guild'
         }
       }
 
-      const roleIds: string[] = isSiteOwner
-        ? [SITE_OWNER_DISCORD_ID]
-        : (member?.roles || [])
+      if (!member && !isSiteOwner) {
+        return '/auth/error?error=not_in_guild'
+      }
+
+      const roleIds: string[] = [
+        ...(member?.roles || []),
+        ...(isSiteOwner ? [SITE_OWNER_DISCORD_ID] : []),
+      ]
 
       const existingUser = await prisma.user.findUnique({
         where: { discordId },
@@ -100,9 +102,8 @@ export const authOptions: AuthOptions = {
         if (user) {
           token.userId = user.id
           token.discordId = discordId
-          token.roleIds = isSiteOwner
-            ? [SITE_OWNER_DISCORD_ID]
-            : user.roleIds
+          // Păstrăm rolurile Discord reale și adăugăm separat identificatorul Owner.
+          token.roleIds = user.roleIds || (isSiteOwner ? [SITE_OWNER_DISCORD_ID] : [])
 
           token.isLeadership = isSiteOwner
             ? true
@@ -126,11 +127,38 @@ export const authOptions: AuthOptions = {
         const discordId = token.discordId as string
 
         if (discordId) {
-          // Site owner is permanently trusted.
+          // Owner-ul nu își pierde accesul permanent, dar îi actualizăm rolurile Discord.
           if (discordId === SITE_OWNER_DISCORD_ID) {
-            token.roleIds = [SITE_OWNER_DISCORD_ID]
+            let member = null
+
+            try {
+              member = await getGuildMember(discordId)
+            } catch {
+              member = null
+            }
+
+            const currentRoles = member?.roles || (
+              Array.isArray(token.roleIds)
+                ? (token.roleIds as string[]).filter(id => id !== SITE_OWNER_DISCORD_ID)
+                : []
+            )
+            const roleIds = [...new Set([...currentRoles, SITE_OWNER_DISCORD_ID])]
+
+            token.roleIds = roleIds
             token.isLeadership = true
             token.lastVerified = Date.now()
+
+            const user = await prisma.user.findUnique({
+              where: { discordId },
+            })
+
+            if (user) {
+              await prisma.user.update({
+                where: { discordId },
+                data: { roleIds },
+              })
+            }
+
             return token
           }
 
