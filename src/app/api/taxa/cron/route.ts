@@ -113,7 +113,7 @@ async function sendExpiry(item: any, kind: 'tomorrow' | 'today', todayKey: strin
     '━━━━━━━━━━━━━━━━━━━━',
     '<@&1107100643291828224> <@&1515017621127299303> <@&1107099637644529684>',
     `TaxItem ID: ${item.id}`,
-  ].join('\n')
+  ].join('\\n')
 
   if (!DISCORD_BOT_TOKEN) throw new Error('DISCORD_BOT_TOKEN nu este configurat')
   const response = await fetch(`https://discord.com/api/v10/channels/${CHANNEL_ID}/messages`, {
@@ -124,7 +124,7 @@ async function sendExpiry(item: any, kind: 'tomorrow' | 'today', todayKey: strin
   if (!response.ok) throw new Error(`Discord API ${response.status}: ${await response.text()}`)
 
   await (prisma as any).botLog.create({
-    data: { categorie: 'taxa', titlu, continut: content },
+    data: { categorie: 'taxa', titlu: title, continut: content },
   })
 
   const leaders = await prisma.user.findMany({
