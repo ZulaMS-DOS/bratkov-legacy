@@ -261,6 +261,7 @@ model Fine {
   bucati      Int      @default(0)
   termen      String   @default("")
   fwLevel     Int?
+  discordMessageId String?
   givenBy     String
   givenByName String
   createdAt   DateTime @default(now())
