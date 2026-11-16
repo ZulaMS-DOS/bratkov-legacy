@@ -14,32 +14,45 @@ const FW_ROLES: Record<number, string> = {
   3: '1542900241462853682',
 }
 
-async function sendDiscordMessage(channelId: string, content: string) {
+async function sendDiscordMessage(channelId: string, content: string): Promise<string | null> {
   try {
-    await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
-      method:  'POST',
-      headers: { 'Authorization': `Bot ${DISCORD_BOT_TOKEN}`, 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ content }),
-    })
-  } catch {}
+    const response = await fetch(
+      `https://discord.com/api/v10/channels/${channelId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bot ${DISCORD_BOT_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content }),
+      }
+    )
+
+    if (!response.ok) {
+      console.error('Discord message send failed:', response.status, await response.text())
+      return null
+    }
+
+    const message = await response.json()
+    return message.id || null
+  } catch (error) {
+    console.error('Discord message send error:', error)
+    return null
+  }
 }
 
 async function addRole(discordId: string, roleId: string) {
-  try {
-    await fetch(
-      `https://discord.com/api/v10/guilds/${DISCORD_GUILD_ID}/members/${discordId}/roles/${roleId}`,
-      { method: 'PUT', headers: { 'Authorization': `Bot ${DISCORD_BOT_TOKEN}` } }
-    )
-  } catch {}
+  return fetch(
+    `https://discord.com/api/v10/guilds/${DISCORD_GUILD_ID}/members/${discordId}/roles/${roleId}`,
+    { method: 'PUT', headers: { 'Authorization': `Bot ${DISCORD_BOT_TOKEN}` } }
+  )
 }
 
 async function removeRole(discordId: string, roleId: string) {
-  try {
-    await fetch(
-      `https://discord.com/api/v10/guilds/${DISCORD_GUILD_ID}/members/${discordId}/roles/${roleId}`,
-      { method: 'DELETE', headers: { 'Authorization': `Bot ${DISCORD_BOT_TOKEN}` } }
-    )
-  } catch {}
+  return fetch(
+    `https://discord.com/api/v10/guilds/${DISCORD_GUILD_ID}/members/${discordId}/roles/${roleId}`,
+    { method: 'DELETE', headers: { 'Authorization': `Bot ${DISCORD_BOT_TOKEN}` } }
+  )
 }
 
 export async function GET() {
@@ -61,7 +74,7 @@ export async function POST(req: NextRequest) {
   const { session, error } = await requireFineGiver()
   if (error) return error
 
- const { userId, tip, motiv, material, bucati, termen, fwLevel } = await req.json()
+  const { userId, tip, motiv, material, bucati, termen, fwLevel } = await req.json()
   if (!userId || !material) {
     return NextResponse.json({ error: 'Membru și material obligatorii' }, { status: 400 })
   }
@@ -83,22 +96,19 @@ export async function POST(req: NextRequest) {
   })
 
   if (tipFinal === 'fw') {
-    const newFwLevel = parseInt(fwLevel)
+    const newFwLevel = Math.max(1, Math.min(3, parseInt(fwLevel) || 1))
 
-    // Calculeaza FW-urile anterioare
     const previousFws = await (prisma as any).fine.findMany({
       where:   { userId, tip: 'fw', id: { not: fine.id } },
       orderBy: { createdAt: 'asc' },
       select:  { fwLevel: true },
     })
 
-    // Total FW curent (max 3)
     const totalFw = Math.min(
       previousFws.reduce((sum: number, f: any) => sum + (f.fwLevel || 1), 0) + newFwLevel,
       3
     )
 
-    // Istoric
     const history = [
       ...previousFws.map((f: any) => `FW ${f.fwLevel}/3`),
       `FW ${newFwLevel}/3`,
@@ -113,18 +123,21 @@ export async function POST(req: NextRequest) {
     })
 
     if (user?.discordId) {
-      // Scoate gradele FW anterioare si adauga cel nou
       for (const [level, roleId] of Object.entries(FW_ROLES)) {
         if (parseInt(level) !== totalFw) {
-          await removeRole(user.discordId, roleId)
+          const response = await removeRole(user.discordId, roleId)
+          if (!response.ok && response.status !== 404) {
+            console.error('Discord FW role removal failed:', response.status)
+          }
         }
       }
+
       if (FW_ROLES[totalFw]) {
-        await addRole(user.discordId, FW_ROLES[totalFw])
+        const response = await addRole(user.discordId, FW_ROLES[totalFw])
+        if (!response.ok) console.error('Discord FW role assignment failed:', response.status)
       }
 
-      // Mesaj Discord FW
-      await sendDiscordMessage(
+      const messageId = await sendDiscordMessage(
         FW_CHANNEL_ID,
         `## 🚨 Faction Warn — ${user.username}\n` +
         `${DIVIDER}\n` +
@@ -134,9 +147,15 @@ export async function POST(req: NextRequest) {
         `> 👮 **Dat de:** ${session!.user.name}\n` +
         `${DIVIDER}`
       )
+
+      if (messageId) {
+        await (prisma as any).fine.update({
+          where: { id: fine.id },
+          data: { discordMessageId: messageId },
+        })
+      }
     }
 
-    // Log FW
     await (prisma as any).botLog.create({
       data: {
         categorie: 'sanctiuni',
@@ -155,8 +174,7 @@ export async function POST(req: NextRequest) {
       select: { username: true, discordId: true },
     })
 
-    // Mesaj Discord Amendă
-    await sendDiscordMessage(
+    const messageId = await sendDiscordMessage(
       AMENDA_CHANNEL_ID,
       `## ⚠️ Amendă — ${user?.username || 'Necunoscut'}\n` +
       `${DIVIDER}\n` +
@@ -168,7 +186,13 @@ export async function POST(req: NextRequest) {
       `${DIVIDER}`
     )
 
-    // Log Amendă
+    if (messageId) {
+      await (prisma as any).fine.update({
+        where: { id: fine.id },
+        data: { discordMessageId: messageId },
+      })
+    }
+
     await (prisma as any).botLog.create({
       data: {
         categorie: 'sanctiuni',
