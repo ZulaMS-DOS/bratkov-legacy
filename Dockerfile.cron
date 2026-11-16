@@ -1,0 +1,5 @@
+FROM alpine:3.21
+
+RUN apk add --no-cache curl
+
+CMD ["sh", "-c", "curl -fsS -H \"Authorization: Bearer ${TAX_CRON_SECRET}\" https://bratkov-legacy.up.railway.app/api/taxa/cron"]
